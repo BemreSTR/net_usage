@@ -5,6 +5,7 @@ netusage.py — Terminal tabanlı macOS ağ (Wi‑Fi) veri kullanımı kaydedici
 
 Yeni özellikler
 - report --last 1h / 24h / 30m / 7d gibi sürelerle hızlı rapor
+- report --since YYYY-MM-DD veya YYYY-MM-DDTHH:MM:SS formatında belirli tarihten bugüne rapor
 - report --update: raporlamadan hemen önce otomatik sample al
 
 Özellikler
@@ -15,6 +16,7 @@ Yeni özellikler
   * Günlük toplam (YYYY-MM-DD)
   * Saatlik dağılım (YYYY-MM-DD için)
   * Özel zaman aralığı (ISO8601 başlangıç/bitiş)
+  * Belirli tarihten bugüne (--since YYYY-MM-DD veya ISO8601 tarih-saat)
   * Son X süre (örn. --last 1h, 24h)
 
 Kullanım
@@ -23,6 +25,8 @@ Kullanım
   python3 netusage.py report --day 2025-11-02
   python3 netusage.py report --day 2025-11-02 --hourly
   python3 netusage.py report --from "2025-11-01T00:00:00" --to "2025-11-02T00:00:00"
+  python3 netusage.py report --since "2025-11-01" --update
+  python3 netusage.py report --since "2025-11-02T18:30:00" --update
   python3 netusage.py report --last 24h --update
 
 Notlar
@@ -255,9 +259,24 @@ def cmd_report(args):
     iface = args.iface or detect_default_iface()
     if args.update:
         insert_sample(iface, args.db)
-    picks = sum(bool(x) for x in [args.day, args.range_from and args.range_to, args.last])
+    picks = sum(bool(x) for x in [args.day, args.range_from and args.range_to, args.last, args.since])
     if picks != 1:
-        raise SystemExit("Lütfen şunlardan yalnızca birini kullanın: --day YA DA (--from & --to) YA DA --last")
+        raise SystemExit("Lütfen şunlardan yalnızca birini kullanın: --day YA DA (--from & --to) YA DA --last YA DA --since")
+    if args.since:
+        end_ts = int(time.time())
+        # --since parametresi gün (YYYY-MM-DD) veya tarih-saat (ISO8601) formatında olabilir
+        since_str = args.since.strip()
+        if 'T' not in since_str and len(since_str) == 10:
+            # YYYY-MM-DD formatında, günün başlangıcından başla
+            start_ts, _ = day_bounds(since_str, args.tz)
+        else:
+            # ISO8601 formatında (tarih-saat ile), direkt parse et
+            start_ts = parse_iso(since_str)
+        rx, tx = compute_usage_between(start_ts, end_ts, iface, args.db)
+        start_dt = dt.datetime.fromtimestamp(start_ts).isoformat()
+        end_dt = dt.datetime.fromtimestamp(end_ts).isoformat()
+        print_usage_result(f"{start_dt} .. {end_dt} ({iface})", rx, tx)
+        return
     if args.day:
         start_ts, end_ts = day_bounds(args.day, args.tz)
         rx, tx = compute_usage_between(start_ts, end_ts, iface, args.db)
@@ -300,6 +319,7 @@ def build_parser():
     sr.add_argument("--from", dest="range_from", help="Başlangıç zamanı (ISO8601, ör: 2025-11-02T00:00:00)")
     sr.add_argument("--to", dest="range_to", help="Bitiş zamanı (ISO8601)")
     sr.add_argument("--last", help="Son X süre (örn. 30m, 1h, 24h, 7d, 2w)")
+    sr.add_argument("--since", help="Belirli bir tarihten bugüne kadar (YYYY-MM-DD veya ISO8601 tarih-saat, ör: 2025-11-01 veya 2025-11-02T18:30:00)")
     sr.add_argument("--tz", help="Gün sınırları için saat dilimi (örn: Europe/Istanbul). Boşsa yerel saat.")
     sr.add_argument("--update", action="store_true", help="Raporlamadan hemen önce bir sample al")
     sr.set_defaults(func=cmd_report)

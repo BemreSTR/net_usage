@@ -32,3 +32,9 @@ python3 netusage.py report --last 1h --update
 
 # Günlük raporda da geçerli
 python3 netusage.py report --day 2025-11-03 --update
+
+# Belirli bir günden bugüne
+python3 netusage.py report --since "2025-11-01" --update
+
+# Belirli bir tarih-saatten bugüne
+python3 netusage.py report --since "2025-11-02T18:30:00" --update
