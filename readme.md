@@ -19,7 +19,7 @@ A lightweight command-line tool for tracking and reporting WiFi data usage on ma
 
 1. Clone this repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/BemreSTR/net_usage
 cd net_usage
 ```
 
